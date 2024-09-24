@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: snapshot-helper
+  docker:
+    compose:
+      enabled: false
+server:
+  port: 18000
+logging:
+  level:
+    root: debug
