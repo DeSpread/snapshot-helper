@@ -10,12 +10,16 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
-@RequestMapping("/v1")
+@RequestMapping("/api/v1")
 class SnapshotController(private val aptosSnapshotService: AptosSnapshotService) {
 
     @PostMapping("/snapshot")
-    fun snapshot(@RequestBody snapshotDto: SnapshotDto) : ResponseEntity<Unit> {
-        val result = aptosSnapshotService.snapshot(snapshotDto)
-        return ResponseEntity(result, HttpStatus.CREATED)
+    suspend fun snapshot(@RequestBody snapshotDto: SnapshotDto): ResponseEntity<Void> {
+        return try {
+            aptosSnapshotService.snapshot(snapshotDto)
+            ResponseEntity(HttpStatus.CREATED)
+        } catch (e: Exception) {
+            ResponseEntity(HttpStatus.INTERNAL_SERVER_ERROR)
+        }
     }
 }
