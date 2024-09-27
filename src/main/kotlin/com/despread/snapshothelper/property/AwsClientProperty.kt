@@ -1,4 +1,4 @@
-package com.despread.snapshothelper.config
+package com.despread.snapshothelper.property
 
 import lombok.ToString
 import org.springframework.boot.context.properties.ConfigurationProperties

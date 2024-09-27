@@ -33,6 +33,7 @@ dependencies {
     implementation("org.apache.commons:commons-compress:1.27.1")
     implementation("org.lz4:lz4-java:1.8.0")
     implementation("com.amazonaws:aws-java-sdk-s3:1.12.563")
+    implementation("io.github.cdimascio:dotenv-kotlin:6.4.2")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-jdk8:1.9.0")

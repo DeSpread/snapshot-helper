@@ -7,14 +7,11 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.stereotype.Service
 import java.io.File
 import java.nio.file.Path
-import java.util.concurrent.Executor
 
 
 @Service
 class AptosSnapshotService(
-    private val s3UploadTaskExecutor: Executor,
-    private val compressorTaskExecutor: Executor,
-    private val compressorService: CompressorService,
+    private val compressorService: CompressorService
 ) {
     private val logger: KLogger = KotlinLogging.logger {}
 
@@ -26,8 +23,6 @@ class AptosSnapshotService(
 
     private suspend fun compressToTarLz4AndUploadToS3(sourceDirectoryPath: Path, s3Key: String) {
         compressorService.compressToTarLz4AndUploadToS3(
-            s3UploadTaskExecutor = s3UploadTaskExecutor,
-            compressorTaskExecutor = compressorTaskExecutor,
             sourceDir = sourceDirectoryPath,
             s3Key = s3Key
         )

@@ -17,52 +17,46 @@ import java.util.concurrent.Executor
 @Service
 class CompressorService(
     private val awsS3Service: AwsS3Service,
+    private val compressorTaskExecutor: Executor
 ) {
+
     private suspend fun compressDirectoryToTarLz4(
         compressorTaskExecutor: Executor,
         sourceDir: Path, outputStream: OutputStream
     ) = withContext(compressorTaskExecutor.asCoroutineDispatcher()) {
-            BufferedOutputStream(outputStream).use { buffOut ->
-                LZ4FrameOutputStream(buffOut).use { lz4Out ->
-                    TarArchiveOutputStream(lz4Out).use { tarOut ->
-                        tarOut.setLongFileMode(TarArchiveOutputStream.LONGFILE_GNU)
+        BufferedOutputStream(outputStream, 6 * 1024 * 1024).use { buffOut ->
+            LZ4FrameOutputStream(buffOut).use { lz4Out ->
+                TarArchiveOutputStream(lz4Out).use { tarOut ->
+                    tarOut.setLongFileMode(TarArchiveOutputStream.LONGFILE_GNU)
+                    tarOut.setBigNumberMode(TarArchiveOutputStream.BIGNUMBER_STAR)
 
-                        // Tar the entire directory
-                        Files.walk(sourceDir).forEach { path ->
+                    Files.walk(sourceDir).use { paths ->
+                        paths.forEach { path ->
                             val entryName = sourceDir.relativize(path).toString()
                             val tarEntry = TarArchiveEntry(path.toFile(), entryName)
 
                             tarOut.putArchiveEntry(tarEntry)
+
                             if (!Files.isDirectory(path)) {
-                                Files.copy(path, tarOut)
+                                Files.newInputStream(path).use { fileInputStream ->
+                                    fileInputStream.copyTo(tarOut, 6 * 1024 * 1024)
+                                }
                             }
+
                             tarOut.closeArchiveEntry()
                         }
-
-                        tarOut.finish()
                     }
+
+                    tarOut.finish()
                 }
             }
         }
-
-    private suspend fun uploadToS3(
-        s3UploadTaskExecutor: Executor,
-        pipedInputStream: PipedInputStream,
-        s3Key: String
-    ) = withContext(s3UploadTaskExecutor.asCoroutineDispatcher()) {
-            awsS3Service.uploadFromInputStreamToS3(
-                inputStream = pipedInputStream,
-                s3Key = s3Key
-            )
-            pipedInputStream.close()
-        }
+    }
 
     suspend fun compressToTarLz4AndUploadToS3(
-        s3UploadTaskExecutor: Executor,
-        compressorTaskExecutor: Executor,
         sourceDir: Path, s3Key: String
     ) = coroutineScope {
-        val pipedInputStream = PipedInputStream()
+        val pipedInputStream = PipedInputStream(6 * 1024 * 1024)
         val pipedOutputStream = PipedOutputStream(pipedInputStream)
 
         val compressionJob = launch {
@@ -71,7 +65,7 @@ class CompressorService(
         }
 
         val uploadJob = launch {
-            uploadToS3(s3UploadTaskExecutor, pipedInputStream, s3Key)
+            awsS3Service.uploadToS3WithMultipart(pipedInputStream, s3Key)
         }
 
         joinAll(compressionJob, uploadJob)
