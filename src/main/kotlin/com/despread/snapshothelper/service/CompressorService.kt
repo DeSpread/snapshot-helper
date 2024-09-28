@@ -21,7 +21,6 @@ class CompressorService(
 ) {
 
     private suspend fun compressDirectoryToTarLz4(
-        compressorTaskExecutor: Executor,
         sourceDir: Path, outputStream: OutputStream
     ) = withContext(compressorTaskExecutor.asCoroutineDispatcher()) {
         BufferedOutputStream(outputStream, 6 * 1024 * 1024).use { buffOut ->
@@ -60,7 +59,7 @@ class CompressorService(
         val pipedOutputStream = PipedOutputStream(pipedInputStream)
 
         val compressionJob = launch {
-            compressDirectoryToTarLz4(compressorTaskExecutor, sourceDir, pipedOutputStream)
+            compressDirectoryToTarLz4(sourceDir, pipedOutputStream)
             pipedOutputStream.close()
         }
 

@@ -25,7 +25,7 @@ class AsyncConfig {
         executor.corePoolSize = 3
         executor.maxPoolSize = 6
         executor.queueCapacity = 50
-        executor.setThreadNamePrefix("s3UploadTask-")
+        executor.setThreadNamePrefix("S3UploadTask-")
         executor.initialize()
         return executor
     }
