@@ -5,6 +5,12 @@ spring:
     compose:
       enabled: false
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info,prometheus"
+
 server:
   port: 18000
 
@@ -20,3 +26,10 @@ cloud:
     credentials:
       access-key: ${AWS_S3_ACCESS_KEY}
       secret-key: ${AWS_S3_SECRET_KEY}
+
+notifier:
+  slack:
+    bot-token: ${SLACK_BOT_TOKEN}
+    channel-id: ${SLACK_CHANNEL_ID}
+resource:
+  buffer-size-in-byte: 6291456 # 6 MB

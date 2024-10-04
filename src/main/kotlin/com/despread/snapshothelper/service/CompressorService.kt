@@ -1,6 +1,8 @@
 package com.despread.snapshothelper.util
 
+import com.despread.snapshothelper.property.ResourceProperty
 import com.despread.snapshothelper.service.AwsS3Service
+import com.despread.snapshothelper.service.SlackService
 import kotlinx.coroutines.*
 import net.jpountz.lz4.LZ4FrameOutputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
@@ -16,14 +18,16 @@ import java.util.concurrent.Executor
 
 @Service
 class CompressorService(
+    private val resourceProperty: ResourceProperty,
     private val awsS3Service: AwsS3Service,
-    private val compressorTaskExecutor: Executor
+    private val compressorTaskExecutor: Executor,
+    private val slackService: SlackService
 ) {
 
     private suspend fun compressDirectoryToTarLz4(
         sourceDir: Path, outputStream: OutputStream
     ) = withContext(compressorTaskExecutor.asCoroutineDispatcher()) {
-        BufferedOutputStream(outputStream, 6 * 1024 * 1024).use { buffOut ->
+        BufferedOutputStream(outputStream, resourceProperty.bufferSizeInByte.toInt()).use { buffOut ->
             LZ4FrameOutputStream(buffOut).use { lz4Out ->
                 TarArchiveOutputStream(lz4Out).use { tarOut ->
                     tarOut.setLongFileMode(TarArchiveOutputStream.LONGFILE_GNU)
@@ -38,7 +42,7 @@ class CompressorService(
 
                             if (!Files.isDirectory(path)) {
                                 Files.newInputStream(path).use { fileInputStream ->
-                                    fileInputStream.copyTo(tarOut, 6 * 1024 * 1024)
+                                    fileInputStream.copyTo(tarOut, resourceProperty.bufferSizeInByte.toInt())
                                 }
                             }
 
@@ -55,16 +59,18 @@ class CompressorService(
     suspend fun compressToTarLz4AndUploadToS3(
         sourceDir: Path, s3Key: String
     ) = coroutineScope {
-        val pipedInputStream = PipedInputStream(6 * 1024 * 1024)
+        val pipedInputStream = PipedInputStream(resourceProperty.bufferSizeInByte.toInt())
         val pipedOutputStream = PipedOutputStream(pipedInputStream)
 
-        val compressionJob = launch {
+        val compressionJob = launch (Dispatchers.IO) {
             compressDirectoryToTarLz4(sourceDir, pipedOutputStream)
             pipedOutputStream.close()
+            slackService.sendMessage(message = "Successfully compressed")
         }
 
-        val uploadJob = launch {
-            awsS3Service.uploadToS3WithMultipart(pipedInputStream, s3Key)
+        val uploadJob = launch (Dispatchers.IO) {
+            awsS3Service.uploadToS3WithMultipart(pipedInputStream, s3Key, resourceProperty.bufferSizeInByte)
+            slackService.sendMessage(message = "Successfully uploaded to S3")
         }
 
         joinAll(compressionJob, uploadJob)

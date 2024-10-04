@@ -10,22 +10,26 @@ import java.nio.file.Path
 
 
 @Service
-class AptosSnapshotService(
-    private val compressorService: CompressorService
+class SnapshotService(
+    private val compressorService: CompressorService,
+    private val slackService: SlackService
 ) {
     private val logger: KLogger = KotlinLogging.logger {}
 
     suspend fun snapshot(snapshotDto: SnapshotDto) {
         logger.debug { "snapshotDto: $snapshotDto" }
-        validate(snapshotDto.sourceDirectoryPath)
-        compressToTarLz4AndUploadToS3(Path.of(snapshotDto.sourceDirectoryPath), snapshotDto.s3Key)
-    }
 
-    private suspend fun compressToTarLz4AndUploadToS3(sourceDirectoryPath: Path, s3Key: String) {
-        compressorService.compressToTarLz4AndUploadToS3(
-            sourceDir = sourceDirectoryPath,
-            s3Key = s3Key
-        )
+        runCatching {
+            slackService.sendMessage(message = "Starting the snapshot. thread: ${Thread.currentThread().name}, dto: $snapshotDto")
+
+            validate(snapshotDto.sourceDirectoryPath)
+            compressorService.compressToTarLz4AndUploadToS3(
+                sourceDir = Path.of(snapshotDto.sourceDirectoryPath),
+                s3Key = snapshotDto.s3Key
+            )
+        }.onFailure {
+            slackService.sendMessage(message = it.message)
+        }
     }
 
     private fun validate(sourceDirectoryPath: String) {

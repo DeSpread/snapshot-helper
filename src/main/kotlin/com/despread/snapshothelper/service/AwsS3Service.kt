@@ -26,7 +26,7 @@ class AwsS3Service(
     suspend fun uploadToS3WithMultipart(
         pipedInputStream: PipedInputStream,
         s3Key: String,
-        partSize: Long = 6 * 1024 * 1024
+        partSizeInByte: Long
     ) = withContext(s3UploadTaskExecutor.asCoroutineDispatcher()) {
         val multipartUploadRequest = InitiateMultipartUploadRequest(bucketName, s3Key)
         val initResponse = s3ClientConfig.s3Client().initiateMultipartUpload(multipartUploadRequest)
@@ -37,10 +37,10 @@ class AwsS3Service(
 
         try {
             var bytesRead: Int
-            val buffer = ByteArray(partSize.toInt())
+            val buffer = ByteArray(partSizeInByte.toInt())
 
             while (pipedInputStream.read(buffer).also { bytesRead = it } != -1) {
-                if (bytesRead < partSize && pipedInputStream.available() > 0) {
+                if (bytesRead < partSizeInByte && pipedInputStream.available() > 0) {
                     continue
                 }
 
@@ -63,10 +63,11 @@ class AwsS3Service(
             val completeMultipartUploadRequest =
                 CompleteMultipartUploadRequest(bucketName, s3Key, uploadId, partETags)
             s3ClientConfig.s3Client().completeMultipartUpload(completeMultipartUploadRequest)
+            s3ClientConfig.s3Client().setObjectAcl(bucketName, s3Key, CannedAccessControlList.PublicRead)
 
-            logger.info { "Successful to multipart upload. s3Key: $s3Key" }
+            logger.info { "Successful to multipart upload with public access. s3Key: $s3Key" }
         } catch (e: Exception) {
-            logger.error { "Something went wrong while uploading $uploadId" }
+            logger.error { "Something went wrong while uploading. uploadId: $uploadId" }
             s3ClientConfig.s3Client()
                 .abortMultipartUpload(AbortMultipartUploadRequest(bucketName, s3Key, uploadId))
             throw e
