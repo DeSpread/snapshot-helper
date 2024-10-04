@@ -18,7 +18,8 @@ import java.util.concurrent.Executor
 class AwsS3Service(
     private val s3ClientConfig: S3ClientConfig,
     private val awsClientProperty: AwsClientProperty,
-    private val s3UploadTaskExecutor: Executor
+    private val s3UploadTaskExecutor: Executor,
+    private val slackService: SlackService
 ) {
     private val logger: KLogger = KotlinLogging.logger {}
     private val bucketName: String = awsClientProperty.s3.bucketName
@@ -26,7 +27,8 @@ class AwsS3Service(
     suspend fun uploadToS3WithMultipart(
         pipedInputStream: PipedInputStream,
         s3Key: String,
-        partSizeInByte: Long
+        partSizeInByte: Long,
+        totalBytes: Long
     ) = withContext(s3UploadTaskExecutor.asCoroutineDispatcher()) {
         val multipartUploadRequest = InitiateMultipartUploadRequest(bucketName, s3Key)
         val initResponse = s3ClientConfig.s3Client().initiateMultipartUpload(multipartUploadRequest)
@@ -34,6 +36,9 @@ class AwsS3Service(
 
         val partETags = mutableListOf<PartETag>()
         var partNumber = 1
+        var totalBytesUploaded: Long = 0L
+
+        var lastLoggedPercentage = 0
 
         try {
             var bytesRead: Int
@@ -56,6 +61,17 @@ class AwsS3Service(
 
                 val uploadPartResult = s3ClientConfig.s3Client().uploadPart(uploadPartRequest)
                 partETags.add(uploadPartResult.partETag)
+
+                totalBytesUploaded += bytesRead
+                if (totalBytesUploaded < totalBytes) {
+                    val progressPercentage = ((totalBytesUploaded.toDouble() / totalBytes) * 100).toInt()
+
+                    if (progressPercentage >= lastLoggedPercentage + 10) {
+                        lastLoggedPercentage = (progressPercentage / 10) * 10
+                        logger.info { "Upload progress: $lastLoggedPercentage% completed for s3Key: $s3Key" }
+                        slackService.sendMessage(message = "Upload progress: $lastLoggedPercentage% completed for s3Key: $s3Key")
+                    }
+                }
 
                 partNumber++
             }

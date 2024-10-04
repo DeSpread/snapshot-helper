@@ -27,7 +27,10 @@ class CompressorService(
     private suspend fun compressDirectoryToTarLz4(
         sourceDir: Path, outputStream: OutputStream
     ) = withContext(compressorTaskExecutor.asCoroutineDispatcher()) {
-        BufferedOutputStream(outputStream, resourceProperty.bufferSizeInByte.toInt()).use { buffOut ->
+        BufferedOutputStream(
+            outputStream,
+            resourceProperty.bufferSizeInByte.toInt()
+        ).use { buffOut ->
             LZ4FrameOutputStream(buffOut).use { lz4Out ->
                 TarArchiveOutputStream(lz4Out).use { tarOut ->
                     tarOut.setLongFileMode(TarArchiveOutputStream.LONGFILE_GNU)
@@ -42,7 +45,10 @@ class CompressorService(
 
                             if (!Files.isDirectory(path)) {
                                 Files.newInputStream(path).use { fileInputStream ->
-                                    fileInputStream.copyTo(tarOut, resourceProperty.bufferSizeInByte.toInt())
+                                    fileInputStream.copyTo(
+                                        tarOut,
+                                        resourceProperty.bufferSizeInByte.toInt()
+                                    )
                                 }
                             }
 
@@ -61,16 +67,25 @@ class CompressorService(
     ) = coroutineScope {
         val pipedInputStream = PipedInputStream(resourceProperty.bufferSizeInByte.toInt())
         val pipedOutputStream = PipedOutputStream(pipedInputStream)
+        val totalBytes: Long = FileUtil.getDirectorySize(sourceDir.toFile())
 
-        val compressionJob = launch (Dispatchers.IO) {
-            compressDirectoryToTarLz4(sourceDir, pipedOutputStream)
-            pipedOutputStream.close()
-            slackService.sendMessage(message = "Successfully compressed")
+        slackService.sendMessage(message = "totalBytes: $totalBytes, bufferSize: ${resourceProperty.bufferSizeInByte}")
+        val compressionJob = launch(Dispatchers.IO) {
+            runCatching {
+                compressDirectoryToTarLz4(sourceDir, pipedOutputStream)
+                pipedOutputStream.close()
+            }.onSuccess { slackService.sendMessage(message = "Successfully compressed") }
         }
 
-        val uploadJob = launch (Dispatchers.IO) {
-            awsS3Service.uploadToS3WithMultipart(pipedInputStream, s3Key, resourceProperty.bufferSizeInByte)
-            slackService.sendMessage(message = "Successfully uploaded to S3")
+        val uploadJob = launch(Dispatchers.IO) {
+            runCatching {
+                awsS3Service.uploadToS3WithMultipart(
+                    pipedInputStream,
+                    s3Key,
+                    resourceProperty.bufferSizeInByte,
+                    totalBytes
+                )
+            }.onSuccess { slackService.sendMessage(message = "Successfully uploaded to S3") }
         }
 
         joinAll(compressionJob, uploadJob)

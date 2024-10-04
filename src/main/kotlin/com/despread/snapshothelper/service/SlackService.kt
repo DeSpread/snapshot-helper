@@ -20,8 +20,9 @@ class SlackService(
     suspend fun sendMessage(channelId: String = slackProperty.channelId, message: String?) {
         val client = Slack.getInstance().methods()
         val span = coroutineContext[TracingContext]?.span!!
-
         val traceId = span.context().traceId()
+
+        logger.info { "[${traceId}] : $message" }
         runCatching {
             client.chatPostMessage {
                 it.token(slackProperty.botToken)
