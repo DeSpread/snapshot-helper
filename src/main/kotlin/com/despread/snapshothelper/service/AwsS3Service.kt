@@ -10,7 +10,6 @@ import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.withContext
 import org.springframework.stereotype.Service
 import java.io.InputStream
-import java.io.PipedInputStream
 import java.util.concurrent.Executor
 
 
@@ -25,7 +24,7 @@ class AwsS3Service(
     private val bucketName: String = awsClientProperty.s3.bucketName
 
     suspend fun uploadToS3WithMultipart(
-        pipedInputStream: PipedInputStream,
+        inputStream: InputStream,
         s3Key: String,
         partSizeInByte: Long,
         totalBytes: Long
@@ -44,8 +43,8 @@ class AwsS3Service(
             var bytesRead: Int
             val buffer = ByteArray(partSizeInByte.toInt())
 
-            while (pipedInputStream.read(buffer).also { bytesRead = it } != -1) {
-                if (bytesRead < partSizeInByte && pipedInputStream.available() > 0) {
+            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                if (bytesRead < partSizeInByte && inputStream.available() > 0) {
                     continue
                 }
 
@@ -63,15 +62,16 @@ class AwsS3Service(
                 partETags.add(uploadPartResult.partETag)
 
                 totalBytesUploaded += bytesRead
-                if (totalBytesUploaded < totalBytes) {
-                    val progressPercentage = ((totalBytesUploaded.toDouble() / totalBytes) * 100).toInt()
-
-                    if (progressPercentage >= lastLoggedPercentage + 10) {
-                        lastLoggedPercentage = (progressPercentage / 10) * 10
-                        logger.info { "Upload progress: $lastLoggedPercentage% completed for s3Key: $s3Key" }
-                        slackService.sendMessage(message = "Upload progress: $lastLoggedPercentage% completed for s3Key: $s3Key")
-                    }
-                }
+                // FIXME: Consider how you can monitor the progress of the upload with multi-part
+//                if (totalBytesUploaded < totalBytes) {
+//                    val progressPercentage = ((totalBytesUploaded.toDouble() / totalBytes) * 100).toInt()
+//
+//                    if (progressPercentage >= lastLoggedPercentage + 10) {
+//                        lastLoggedPercentage = (progressPercentage / 10) * 10
+//                        logger.info { "Upload progress: $lastLoggedPercentage% completed for s3Key: $s3Key" }
+//                        slackService.sendMessage(message = "Upload progress: $lastLoggedPercentage% completed for s3Key: $s3Key")
+//                    }
+//                }
 
                 partNumber++
             }
@@ -79,7 +79,7 @@ class AwsS3Service(
             val completeMultipartUploadRequest =
                 CompleteMultipartUploadRequest(bucketName, s3Key, uploadId, partETags)
             s3ClientConfig.s3Client().completeMultipartUpload(completeMultipartUploadRequest)
-            s3ClientConfig.s3Client().setObjectAcl(bucketName, s3Key, CannedAccessControlList.PublicRead)
+            s3ClientConfig.s3Client().setObjectAcl(bucketName, s3Key, CannedAccessControlList.PublicRead) // Allow permission for reading public
 
             logger.info { "Successful to multipart upload with public access. s3Key: $s3Key" }
         } catch (e: Exception) {
@@ -88,7 +88,7 @@ class AwsS3Service(
                 .abortMultipartUpload(AbortMultipartUploadRequest(bucketName, s3Key, uploadId))
             throw e
         } finally {
-            pipedInputStream.close()
+            inputStream.close()
         }
     }
 
