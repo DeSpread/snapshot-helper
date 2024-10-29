@@ -1,0 +1,18 @@
+---
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+rules:
+  - pattern: ".*"
+    # Spring Boot default metrics
+  - pattern: 'java.lang<type=OperatingSystem>([^:]+):'
+    name: java_lang_OperatingSystem_$1
+  - pattern: 'java.lang<type=Memory>([^:]+):'
+    name: java_lang_Memory_$1
+  # GC metrics
+  - pattern: 'java.lang<type=GarbageCollector, name=(.+)><>CollectionCount'
+    name: java_lang_GarbageCollector_CollectionCount
+    labels:
+      gc: $1
+  # Heap memory
+  - pattern: 'java.lang<type=Memory><HeapMemoryUsage>([^:]+):'
+    name: java_lang_Memory_HeapMemoryUsage_$1

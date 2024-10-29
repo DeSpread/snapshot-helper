@@ -4,12 +4,20 @@ spring:
   docker:
     compose:
       enabled: false
+  jmx:
+    enabled: true
 
 management:
   endpoints:
     web:
       exposure:
-        include: "health,info,prometheus"
+        include: "health,info,prometheus,jmx,metrics"
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
 
 server:
   port: 18000

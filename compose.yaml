@@ -1,0 +1,16 @@
+version: '3'
+services:
+  snapshot-helper:
+    image: 482707759481.dkr.ecr.ap-northeast-2.amazonaws.com/snapshot-helper:latest
+    container_name: snapshot-helper
+    ports:
+      - "18000:18000"
+      - "9010:9010"
+      - "9404:9404"
+      - "1099:1099"
+    environment:
+      HOST_IP: 0.0.0.0 # Please put host ip here
+    volumes:
+      - /home/ubuntu/mainnet/data:/app/data
+      - /home/ubuntu/app/test:/app/test
+    restart: always
