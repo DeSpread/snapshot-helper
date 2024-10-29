@@ -9,7 +9,19 @@ services:
       - "9404:9404"
       - "1099:1099"
     environment:
-      HOST_IP: 0.0.0.0 # Please put host ip here
+      - HOST_IP=${HOST_IP:-0.0.0.0} # Please put host's IP here
+      - JAVA_OPTS=
+        -Dcom.sun.management.jmxremote
+        -Dcom.sun.management.jmxremote.port=9010
+        -Dcom.sun.management.jmxremote.rmi.port=9010
+        -Dcom.sun.management.jmxremote.authenticate=false
+        -Dcom.sun.management.jmxremote.ssl=false
+        -Djava.rmi.server.hostname=${HOST_IP}
+        -Dcom.sun.management.jmxremote.local.only=false
+        -Djava.net.preferIPv4Stack=true
+        -javaagent:/app/jmx_prometheus_javaagent.jar=9404:/app/jmx-config.yml
+        -Xms1g
+        -Xmx4g
     volumes:
       - /home/ubuntu/mainnet/data:/app/data
       - /home/ubuntu/app/test:/app/test

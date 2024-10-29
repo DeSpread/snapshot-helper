@@ -43,20 +43,6 @@ COPY .env .
 ADD https://repo.maven.apache.org/maven2/io/prometheus/jmx/jmx_prometheus_javaagent/1.0.1/jmx_prometheus_javaagent-1.0.1.jar /app/jmx_prometheus_javaagent.jar
 COPY jmx-config.yml /app/jmx-config.yml
 
-ENV JAVA_OPTS="\
-    -Dcom.sun.management.jmxremote \
-    -Dcom.sun.management.jmxremote.port=9010 \
-    -Dcom.sun.management.jmxremote.rmi.port=9010 \
-    -Dcom.sun.management.jmxremote.authenticate=false \
-    -Dcom.sun.management.jmxremote.ssl=false \
-    -Djava.rmi.server.hostname=${HOST_IP:-0.0.0.0} \
-    -Dcom.sun.management.jmxremote.local.only=false \
-    -Djava.net.preferIPv4Stack=true \
-    -Dcom.sun.management.jmxremote.autodiscovery=true \
-    -javaagent:/app/jmx_prometheus_javaagent.jar=9404:/app/jmx-config.yml \
-    -Xms1g \
-    -Xmx4g"
-
 EXPOSE 18000
 EXPOSE 9010
 EXPOSE 9404
