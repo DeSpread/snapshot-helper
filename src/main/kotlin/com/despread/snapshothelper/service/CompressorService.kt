@@ -25,15 +25,16 @@ class CompressorService(
         sourceDir: Path,
         s3Key: String
     ) = coroutineScope {
-        val bufferSize = resourceProperty.bufferSizeInByte.toInt()
+        val bufferSizeInByte = resourceProperty.bufferSizeInByte.toInt()
+        val multipartSizeInByte = resourceProperty.multipartSizeInByte.toInt()
         val totalBytes: Long = FileUtil.getDirectorySize(sourceDir.toFile())
 
-        val compressBuffer = ByteArray(bufferSize)
+        val compressBuffer = ByteArray(bufferSizeInByte)
         val channel = Channel<ByteArray>(Channel.BUFFERED)
 
         val compressionJob = launch(Dispatchers.IO) {
             try {
-                BufferUtil.channelOutputStream(channel, bufferSize).use { outputStream ->
+                BufferUtil.channelOutputStream(channel, bufferSizeInByte).use { outputStream ->
                     compressDirectoryToTarLz4(sourceDir, outputStream, compressBuffer)
                 }
             } catch (e: Exception) {
@@ -50,7 +51,7 @@ class CompressorService(
                     awsS3Service.uploadToS3WithMultipart(
                         inputStream,
                         s3Key,
-                        bufferSize.toLong(),
+                        multipartSizeInByte.toLong(),
                         totalBytes
                     )
                 }

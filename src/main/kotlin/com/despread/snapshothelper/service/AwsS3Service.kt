@@ -26,7 +26,7 @@ class AwsS3Service(
     suspend fun uploadToS3WithMultipart(
         inputStream: InputStream,
         s3Key: String,
-        partSizeInByte: Long,
+        multipartSizeInByte: Long,
         totalBytes: Long
     ) = withContext(s3UploadTaskExecutor.asCoroutineDispatcher()) {
         val multipartUploadRequest = InitiateMultipartUploadRequest(bucketName, s3Key)
@@ -41,10 +41,10 @@ class AwsS3Service(
 
         try {
             var bytesRead: Int
-            val buffer = ByteArray(partSizeInByte.toInt())
+            val buffer = ByteArray(multipartSizeInByte.toInt())
 
             while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                if (bytesRead < partSizeInByte && inputStream.available() > 0) {
+                if (bytesRead < multipartSizeInByte && inputStream.available() > 0) {
                     continue
                 }
 

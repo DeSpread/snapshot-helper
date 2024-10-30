@@ -22,8 +22,8 @@ class AsyncConfig {
     @Bean(name = ["s3UploadTaskExecutor"])
     fun s3UploadTaskExecutor(): Executor {
         val executor = ThreadPoolTaskExecutor()
-        executor.corePoolSize = 3
-        executor.maxPoolSize = 6
+        executor.corePoolSize = 8
+        executor.maxPoolSize = 10
         executor.queueCapacity = 50
         executor.setThreadNamePrefix("S3UploadTask-")
         executor.initialize()
