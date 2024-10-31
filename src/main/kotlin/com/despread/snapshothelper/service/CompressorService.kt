@@ -8,6 +8,7 @@ import kotlinx.coroutines.channels.Channel
 import net.jpountz.lz4.LZ4FrameOutputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Service
 import java.io.OutputStream
 import java.nio.file.Files
@@ -18,12 +19,14 @@ import java.util.concurrent.Executor
 class CompressorService(
     private val resourceProperty: ResourceProperty,
     private val awsS3Service: AwsS3Service,
-    private val compressorTaskExecutor: Executor,
+    @Qualifier("compressorTaskExecutor") private val compressorTaskExecutor: Executor,
+    @Qualifier("s3UploadTaskExecutor") private val s3UploadTaskExecutor: Executor,
     private val slackService: SlackService
 ) {
     suspend fun compressToTarLz4AndUploadToS3(
         sourceDir: Path,
-        s3Key: String
+        s3Key: String,
+        notifyProgressIntervalSecond: Long
     ) = coroutineScope {
         val bufferSizeInByte = resourceProperty.bufferSizeInByte.toInt()
         val multipartSizeInByte = resourceProperty.multipartSizeInByte.toInt()
@@ -32,7 +35,7 @@ class CompressorService(
         val compressBuffer = ByteArray(bufferSizeInByte)
         val channel = Channel<ByteArray>(Channel.BUFFERED)
 
-        val compressionJob = launch(Dispatchers.IO) {
+        val compressionJob = launch(compressorTaskExecutor.asCoroutineDispatcher()) {
             try {
                 BufferUtil.channelOutputStream(channel, bufferSizeInByte).use { outputStream ->
                     compressDirectoryToTarLz4(sourceDir, outputStream, compressBuffer)
@@ -45,14 +48,20 @@ class CompressorService(
             }
         }
 
-        val uploadJob = launch(Dispatchers.IO) {
+        val uploadJob = launch(s3UploadTaskExecutor.asCoroutineDispatcher()) {
             try {
                 BufferUtil.channelInputStream(channel).use { inputStream ->
                     awsS3Service.uploadToS3WithMultipart(
                         inputStream,
                         s3Key,
                         multipartSizeInByte.toLong(),
-                        totalBytes
+                        totalBytes,
+                        progressCallback = { bytesUploaded ->
+                            if (bytesUploaded > 0L) {
+                                slackService.sendMessage(message = "Upload progress: $bytesUploaded bytes completed.")
+                            }
+                        },
+                        notifyProgressIntervalSecond = notifyProgressIntervalSecond
                     )
                 }
             } catch (e: Exception) {

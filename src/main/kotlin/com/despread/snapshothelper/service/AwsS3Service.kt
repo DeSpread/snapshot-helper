@@ -7,7 +7,10 @@ import com.despread.snapshothelper.property.AwsClientProperty
 import io.github.oshai.kotlinlogging.KLogger
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Service
 import java.io.InputStream
 import java.util.concurrent.Executor
@@ -18,7 +21,7 @@ class AwsS3Service(
     private val s3ClientConfig: S3ClientConfig,
     private val awsClientProperty: AwsClientProperty,
     private val s3UploadTaskExecutor: Executor,
-    private val slackService: SlackService
+    @Qualifier("monitorProgressTaskExecutor") private val monitorProgressTaskExecutor: Executor,
 ) {
     private val logger: KLogger = KotlinLogging.logger {}
     private val bucketName: String = awsClientProperty.s3.bucketName
@@ -27,7 +30,9 @@ class AwsS3Service(
         inputStream: InputStream,
         s3Key: String,
         multipartSizeInByte: Long,
-        totalBytes: Long
+        totalBytes: Long,
+        progressCallback: suspend (bytesUploaded: Long) -> Unit,
+        notifyProgressIntervalSecond: Long
     ) = withContext(s3UploadTaskExecutor.asCoroutineDispatcher()) {
         val multipartUploadRequest = InitiateMultipartUploadRequest(bucketName, s3Key)
         val initResponse = s3ClientConfig.s3Client().initiateMultipartUpload(multipartUploadRequest)
@@ -35,14 +40,18 @@ class AwsS3Service(
 
         val partETags = mutableListOf<PartETag>()
         var partNumber = 1
-        var totalBytesUploaded: Long = 0L
+        var totalBytesUploaded:Long = 0L
+        var bytesRead: Int
+        val buffer = ByteArray(multipartSizeInByte.toInt())
 
-        var lastLoggedPercentage = 0
+        val progressJob = launch(monitorProgressTaskExecutor.asCoroutineDispatcher()) {
+            while (true) {
+                progressCallback(totalBytesUploaded)
+                delay(notifyProgressIntervalSecond * 1000L)
+            }
+        }
 
         try {
-            var bytesRead: Int
-            val buffer = ByteArray(multipartSizeInByte.toInt())
-
             while (inputStream.read(buffer).also { bytesRead = it } != -1) {
                 if (bytesRead < multipartSizeInByte && inputStream.available() > 0) {
                     continue
@@ -62,17 +71,6 @@ class AwsS3Service(
                 partETags.add(uploadPartResult.partETag)
 
                 totalBytesUploaded += bytesRead
-                // FIXME: Consider how you can monitor the progress of the upload with multi-part
-//                if (totalBytesUploaded < totalBytes) {
-//                    val progressPercentage = ((totalBytesUploaded.toDouble() / totalBytes) * 100).toInt()
-//
-//                    if (progressPercentage >= lastLoggedPercentage + 10) {
-//                        lastLoggedPercentage = (progressPercentage / 10) * 10
-//                        logger.info { "Upload progress: $lastLoggedPercentage% completed for s3Key: $s3Key" }
-//                        slackService.sendMessage(message = "Upload progress: $lastLoggedPercentage% completed for s3Key: $s3Key")
-//                    }
-//                }
-
                 partNumber++
             }
 
@@ -89,6 +87,7 @@ class AwsS3Service(
             throw e
         } finally {
             inputStream.close()
+            progressJob.cancel()
         }
     }
 

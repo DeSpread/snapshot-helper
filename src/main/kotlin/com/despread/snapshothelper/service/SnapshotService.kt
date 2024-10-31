@@ -25,7 +25,8 @@ class SnapshotService(
             validate(snapshotDto.sourceDirectoryPath)
             compressorService.compressToTarLz4AndUploadToS3(
                 sourceDir = Path.of(snapshotDto.sourceDirectoryPath),
-                s3Key = snapshotDto.s3Key
+                s3Key = snapshotDto.s3Key,
+                notifyProgressIntervalSecond = snapshotDto.notifyProgressIntervalSecond
             )
         }.onFailure {
             slackService.sendMessage(message = it.message)

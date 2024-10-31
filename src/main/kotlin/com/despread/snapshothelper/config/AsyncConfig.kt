@@ -29,4 +29,15 @@ class AsyncConfig {
         executor.initialize()
         return executor
     }
+
+    @Bean(name = ["monitorProgressTaskExecutor"])
+    fun monitorTaskExecutor(): Executor {
+        val executor = ThreadPoolTaskExecutor()
+        executor.corePoolSize = 3
+        executor.maxPoolSize = 5
+        executor.queueCapacity = 50
+        executor.setThreadNamePrefix("MonitorTask-")
+        executor.initialize()
+        return executor
+    }
 }
