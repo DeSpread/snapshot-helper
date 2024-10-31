@@ -3,6 +3,14 @@
 Snapshot Helper is a utility designed to assist with managing and creating snapshots in a streamlined way.
 The tool is written in Kotlin and uses Docker for containerization, making it easy to deploy and use in various environments.
 
+## Important Note
+Files larger than 10GB are not recommended for upload due to performance considerations. Processing such large files may result in slower performance and increased resource usage.
+If you need to upload a file larger than 10GB, we recommend the projects below. 
+- Goofys
+- S3FS-FUSE
+- RClone
+- ObjectiveFS
+
 ## Features
 - Automates snapshot creation
 - Docker container support
@@ -45,7 +53,8 @@ Example payload:
 ```json
 {
     "sourceDirectoryPath":  "/home/ubuntu/source_directory_path",
-    "s3Key": "{your_s3_object_name}.tar.lz4"
+    "s3Key": "{your_s3_object_name}.tar.lz4",
+    "notifyProgressIntervalSecond": 60
 }
 ```
 
