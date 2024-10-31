@@ -39,5 +39,14 @@ WORKDIR /app
 COPY --from=build /app/build/libs/*.jar app.jar
 COPY .env .
 
+# Copy JMX exporter to local app directory
+ADD https://repo.maven.apache.org/maven2/io/prometheus/jmx/jmx_prometheus_javaagent/1.0.1/jmx_prometheus_javaagent-1.0.1.jar /app/jmx_prometheus_javaagent.jar
+COPY jmx-config.yml /app/jmx-config.yml
+
+EXPOSE 18000
+EXPOSE 9010
+EXPOSE 9404
+EXPOSE 1099
+
 # Set the entry point to run the application
-ENTRYPOINT ["java", "-Xms1g", "-Xmx4g", "-jar", "app.jar"]
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
